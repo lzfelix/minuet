@@ -17,6 +17,7 @@ def load_dataset(filepath: str) -> Tuple[List[list], List[list]]:
     y = list()
     
     for line in open(filepath):
+        # blank lines separate sequences
         if len(line) <= 1:
             X.append(x)
             Y.append(y)
@@ -37,52 +38,69 @@ def get_possible_labels(Y: List[List[str]]) -> List[str]:
     return list(set(itertools.chain(*Y)))
 
 
-def get_vocabulary(X: List[List[str]], lowercase=True, replace_numbers=True) -> Set[str]:
+# TODO: improve number parsing
+def p_replace_numbers(w):
+    return re.sub('[0-9]+', '<num>', w)
+
+
+def p_lower(w):
+    return w.lower()
+
+
+def get_vocabulary(X: List[List[str]], *preprocess) -> Set[str]:
+    """Determine unique words on the dataset.
     
-    # TODO: improve number parsing
-    identity = lambda w: w
-    _lower = lambda w: w.lower() if lowercase else identity
-    _number = lambda w: re.sub('[0-9]+', '<num>', w) if replace_numbers else identity
+    :param X: List of tokenized sentences.
+    :param *preprocess: p_-like preprocessing functions.
+    """
+    
+    def f_reduce(funs):
+        """Helper function composition function."""
+        def closure(x):
+            for f in funs:
+                x = f(x)
+            return x
+        return closure
+    
+    f = f_reduce(preprocess or [])
     
     vocab = set(['<unk>', '<num>'])
-    
     for i, word in enumerate(itertools.chain(*X)):
-        word_ = _lower(_number(word))
+        word_ = f(word)
         vocab.add(word_)
 
     return vocab
 
 
-def load_embeddings(filepath: str, vocabulary: Set[str], dimension: int) -> Tuple[Dict, np.ndarray]:
-    """Loads the word embeddings for the necessary words only.
-    :param filepath: Path to the embedding file.
-    :param vocabulary
+def load_embeddings(filepath: str, vocabulary: Set[str]) -> Tuple[Dict, np.ndarray]:
+    """
+    Loads the word embeddings for the necessary words only. Words not known by the
+    model are skipped.
+    
+    :param filepath: Path to file with embedding vectors on gensim formet.
+    :param vocabulary Vocabulary to be mapped to word vectors.
+    :returns (V, E) where V maps words to their row number on the embedding matrix E.
     """
     
     word2index = dict()
     word_vectors = list()
-    
+
     def add_entry(word, vector):
         word2index[word] = len(word2index)
         word_vectors.append(vector)
-        
-    # TODO: Add vectors for UNK, FILL and NUM
-    word2index['<fil>'] = 0
-    word_vectors.append(np.zeros((dimension,)))
-    
-    for special in ['<unk>', '<num>']:
-        vector = np.random.uniform(-0.25, 0.25, (dimension,))
-        add_entry(special, vector)
-        
-    # reading word vectors for common vocabulary words
-    for i, line in enumerate(open(filepath, 'r')):
-        entries = line.split(' ')
-        word, vector = entries[0], entries[1:]
-        
-        if word in vocabulary:
-            vector = np.asarray(vector)
-            add_entry(word, vector)
 
-    word_vectors = np.asarray(word_vectors, dtype=np.float32)
-    
+    model = gensim.models.KeyedVectors.load(filepath)
+
+    # adding special tokens <FIL>, <UNK> and <NUM>
+    dim = model.vector_size
+    add_entry('<fil>', np.zeros((dim,)))
+    for special in ['<unk>', '<num>']:
+        vector = np.random.uniform(-0.25, 0.25, (dim,))
+        add_entry(special, vector)
+
+    for word in vocabulary:
+        if word in model:
+            add_entry(word, model[word])
+
+    vocabulary = vocabulary.intersection(word2index.keys())
     return word2index, word_vectors
