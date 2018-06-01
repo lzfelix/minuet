@@ -37,7 +37,7 @@ class Circlet():
         lstm = lstm(embedding)
 
         # Output part
-        output = Dense(self.n_labels, name='output')(lstm)
+        output = Dense(self.n_labels, activation='softmax', name='output')(lstm)
 
         # Compiling the model
         model = Model(inputs=[sentence_in], outputs=[output])
