@@ -1,10 +1,10 @@
-import os
 import re
 import logging
 import itertools
 from typing import Tuple, List, Set, Dict
 
 import numpy as np
+import gensim
 
 
 def load_dataset(filepath: str) -> Tuple[List[list], List[list]]:
@@ -25,7 +25,7 @@ def load_dataset(filepath: str) -> Tuple[List[list], List[list]]:
             x = list()
             y = list()
         else:
-            a, b = line.split('\t')
+            a, b = line.strip().split('\t')
             x.append(a)
             y.append(b)
     
@@ -38,31 +38,14 @@ def get_possible_labels(Y: List[List[str]]) -> List[str]:
     return list(set(itertools.chain(*Y)))
 
 
-# TODO: improve number parsing
-def p_replace_numbers(w):
-    return re.sub('[0-9]+', '<num>', w)
-
-
-def p_lower(w):
-    return w.lower()
-
-
-def get_vocabulary(X: List[List[str]], *preprocess) -> Set[str]:
+def get_vocabulary(X: List[List[str]], f) -> Set[str]:
     """Determine unique words on the dataset.
     
     :param X: List of tokenized sentences.
     :param *preprocess: p_-like preprocessing functions.
     """
     
-    def f_reduce(funs):
-        """Helper function composition function."""
-        def closure(x):
-            for f in funs:
-                x = f(x)
-            return x
-        return closure
-    
-    f = f_reduce(preprocess or [])
+    f = f or (lambda x: x)
     
     vocab = set(['<unk>', '<num>'])
     for i, word in enumerate(itertools.chain(*X)):
@@ -95,7 +78,7 @@ def load_embeddings(filepath: str, vocabulary: Set[str]) -> Tuple[Dict, np.ndarr
     dim = model.vector_size
     add_entry('<fil>', np.zeros((dim,)))
     for special in ['<unk>', '<num>']:
-        vector = np.random.uniform(-0.25, 0.25, (dim,))
+        vector = np.random.uniform(-0.025, 0.025, (dim,))
         add_entry(special, vector)
 
     for word in vocabulary:
@@ -103,4 +86,4 @@ def load_embeddings(filepath: str, vocabulary: Set[str]) -> Tuple[Dict, np.ndarr
             add_entry(word, model[word])
 
     vocabulary = vocabulary.intersection(word2index.keys())
-    return word2index, word_vectors
+    return word2index, np.asarray(word_vectors)
