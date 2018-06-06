@@ -1,3 +1,4 @@
+import numpy as np
 from keras.preprocessing import sequence
 from sklearn.preprocessing import LabelEncoder
 
@@ -50,6 +51,13 @@ class SequenceLabelEncoder(LabelEncoder):
     def fit_transform(self, sequence):
         self.fit(sequence)
         return self.transform(sequence)
+    
+    def inverse_transform(self, sequences):
+        itransformed = list()
+        for sample in sequences:
+            itransformed.append(super().inverse_transform(sample))
+
+        return np.asarray(itransformed)
         
 
 def pad_label_sequence(Y, max_sequence_len, encoder=None):
