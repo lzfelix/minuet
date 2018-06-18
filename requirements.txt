@@ -1,0 +1,7 @@
+numpy
+gensim
+sklearn
+h5py
+keras==2.2.0
+tensorflow==1.8.0
+
