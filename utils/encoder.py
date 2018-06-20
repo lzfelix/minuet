@@ -5,16 +5,16 @@ from sklearn.preprocessing import LabelEncoder
 UNK_WORD_INDEX = 1
 
 
-def sentence_to_index(X, E, word2index, pre, max_sequence_len):
+def sentence_to_index(X, word2index, pre, max_sequence_len=None):
     """Converts sentences as lists of words to list of word ids.
     :param X: List of lists of words, each representing a sentence.
-    :param E: The word-embedding matrix.
     :param word2index: Dict mapping each word to its ID.
     :param pre: Preprocessing functions to be applied to each word of X.
     :param max_sequence_len: Smaller sequences will be trailled with 0 and while
-    larger ones will be trimmed at the end.
-    :returns A m-by-d matrix of word IDs (from word2index) where m is the amount
-    of samples and d the word-vectors size.
+    larger ones will be trimmed at the end. If None no adjustment is performed.
+    :returns Depends on max_sequence_len. If None, returns a list of lists
+    otherwise a m-by-d matrix of word IDs (from word2index) where m is the
+    amount of samples and d the word-vectors size.
     """
     
     all_sentences = list()
@@ -27,7 +27,19 @@ def sentence_to_index(X, E, word2index, pre, max_sequence_len):
             sentence_indices.append(index)
         all_sentences.append(sentence_indices)
         
-    return sequence.pad_sequences(all_sentences, max_sequence_len, truncating='post', padding='post')
+    if max_sequence_len:
+        return sequence.pad_sequences(
+            all_sentences,
+            max_sequence_len,
+            truncating='post',
+            padding='post')
+    else:
+        return all_sentences
+
+
+def make_labels_sequential(sequences):
+    """Transforms a sequences of labels into 3d matrix."""
+    return [np.expand_dims(s, -1) for s in sequences]
 
 
 class SequenceLabelEncoder(LabelEncoder):
@@ -60,23 +72,25 @@ class SequenceLabelEncoder(LabelEncoder):
         return np.asarray(itransformed)
         
 
-def pad_label_sequence(Y, max_sequence_len, encoder=None):
-    """Pads label sequences with the same size of the input sequence.
+def encode_labels(Y, max_sequence_len=None, encoder=None):
+    """Maps sequences of text labels to categorical values. Optionally pad them.
     
     :param Y: list of list of not-encoded labels.
     :param max_sequence_len: Smaller sequences will be trailled with 0 and while
-    larger ones will be trimmed at the end.
+    larger ones will be trimmed at the end. If None no adjustment is performed.
     :param encoder: Label encoder to be used. If not provided, a new
     SequenceLabelEncoder is created and fitted.
-    :returns (y_, e) where y_ is a 2-D matrix of encoded labels and y_ the encoder
-    provided as parameter of fitted.
+    :returns (y_, e) where e is the encoded, either provided or created by this
+    function and y depends on max_sequence len. If None, returns a list of lists,
+    otherwise a m-by-d matrix of word IDs (from word2index).
     """
-    
+
     if not encoder:
         encoder = SequenceLabelEncoder()
         y_ = encoder.fit_transform(Y)
     else:
         y_ = encoder.transform(Y)
         
-    y_ = sequence.pad_sequences(y_, max_sequence_len, truncating='post', padding='post')
+    if max_sequence_len:
+        y_ = sequence.pad_sequences(y_, max_sequence_len, truncating='post', padding='post')
     return y_, encoder
