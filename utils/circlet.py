@@ -126,19 +126,7 @@ class Circlet():
         model.summary()
         self.model = model
         
-    def fit(self, X, Y, X_val, Y_val):
-        """Fits the model.
-        :param X An integer matrix where each row correspons to a sentence.
-        :param Y A 3D a-b-c matrix, where a is the amount of samples, b the
-            sequence size and c=1 (ie: amount of possible labels per sample)
-        :param X_val The validation samples in the same shape as X.
-        :param Y_val The validation labels in the same shape as Y.
-        :returns None
-        """
-        
-        self.n_labels = np.unique(Y).size
-        self._build_model()
-        
+    def __create_callbacks(self):
         # Adding assistence callbacks
         patience = callbacks.EarlyStopping(
             monitor='val_loss', min_delta=1e-2, patience=3
@@ -153,9 +141,38 @@ class Circlet():
             model_callbacks.append(checkpoint)
             
             self._save_model_description(self._model_folder)
+            
+        return model_callbacks
+        
+    def fit(self, X, Y, X_val, Y_val):
+        """Fits the model.
+        :param X An integer matrix where each row correspons to a sentence.
+        :param Y A 3D a-b-c matrix, where a is the amount of samples, b the
+            sequence size and c=1 (ie: amount of possible labels per sample)
+        :param X_val The validation samples in the same shape as X.
+        :param Y_val The validation labels in the same shape as Y.
+        :returns None
+        """
+        
+        self.n_labels = np.unique(Y).size
+        self._build_model()
+        
+        model_callbacks = self.__create_callbacks()
         
         # then training
         self.history = self.model.fit(
             X, Y, BATCH_SIZE, epochs=EPOCHS, validation_data=(X_val, Y_val),
             callbacks=model_callbacks
-        ) 
+        )
+        
+    def fit_generator(self, gen_train, gen_dev, n_labels):
+        
+        self.n_labels = n_labels
+        self._build_model()
+        
+        model_callbacks = self.__create_callbacks()
+        
+        self.history = self.model.fit_generator(
+            gen_train, epochs=EPOCHS, validation_data=gen_dev,
+            callbacks=model_callbacks,
+        )
