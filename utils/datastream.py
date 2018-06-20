@@ -117,4 +117,4 @@ class VariableBatchGenerator(keras.utils.Sequence):
         """Shuffles the buckets between iterations."""
         
         if self.shuffle:
-            np.random.shuffle(buckets)
+            np.random.shuffle(self.buckets)
