@@ -4,16 +4,24 @@ from os import path
 import numpy as np
 from keras import models
 from keras import callbacks
-from keras.layers import Embedding, InputLayer, LSTM, Dense, Input, Bidirectional
+from keras.models import Sequential
+from keras.layers import Embedding
+from keras.layers import InputLayer
+from keras.layers import LSTM
+from keras.layers import Dense
+from keras.layers import Input
+from keras.layers import Bidirectional
+from keras_contrib.layers import CRF
 
 BATCH_SIZE = 16
 EPOCHS = 10
 
 
-class Circlet():
+class Minuet():
     
-    def __init__(self, embedding, lstm_size, lstm_drop, bidirectional=False):
-        """Creates a Circlet model.
+    def __init__(self, embedding, lstm_size, lstm_drop, bidirectional=False, 
+                 crf=False):
+        """Creates a Bi-LSTM prediction model
         :param embedding: A v-by-d matrix where v is the vocabulary size and d
             the word-vectors dimension.
         :param lstm_size: The size of LSTM layer hidden vectors.
@@ -25,11 +33,17 @@ class Circlet():
         self.lstm_size = lstm_size
         self.lstm_drop = lstm_drop
         self.bidirectional = bidirectional
+        self.crf = crf
         self.n_labels = None
         self.model = None
         
         self._model_filepath = None
         self._model_folder = None
+        
+        self.hyperparams = {
+            'batch_size': 16,
+            'epochs': 10
+        }
         
     def _save_model_description(self, folder):
         """Serializes the object parameters as a lightweight JSON file.
@@ -86,7 +100,7 @@ class Circlet():
         
         self._model_folder = model_folder
         self._model_filepath = path.join(model_folder, 'model.hdf5')
-
+        
     def _build_model(self):
         """Build the model: Embedding > (Bi)?LSTM > Softmax
         :returns None
@@ -98,8 +112,10 @@ class Circlet():
 
         # word-embedding only
         embedding = Embedding(
-            self.E.shape[0], self.E.shape[1], weights=[self.E],
-            trainable=False, name='embedding'
+            self.E.shape[0], self.E.shape[1],
+            weights=[self.E],
+            trainable=False, name='embedding',
+            mask_zero=True
         )(sentence_in)
 
         # LSTM part
@@ -113,21 +129,30 @@ class Circlet():
             lstm = Bidirectional(lstm, name='BiLSTM')
         lstm = lstm(embedding)
 
-        # Output part
-        output = Dense(self.n_labels, activation='softmax', name='output')(lstm)
+        if self.crf:
+            crf = CRF(self.n_labels, sparse_target=True)
+            output = crf(lstm)
+            
+            loss_fun = crf.loss_function
+            metrics = [crf.accuracy]
+        else:
+            # Output part
+            output = Dense(self.n_labels, activation='softmax',
+                           name='output')(lstm)
+            loss_fun = 'sparse_categorical_crossentropy'
+            metrics = ['sparse_categorical_accuracy']
 
         # Compiling the model
         model = models.Model(inputs=[sentence_in], outputs=[output])
-        model.compile(
-            'nadam', loss='sparse_categorical_crossentropy',
-            metrics=['sparse_categorical_accuracy']
-        )
+        model.compile('adam', loss=loss_fun, metrics=metrics)
         
+        print(model.optimizer)
         model.summary()
         self.model = model
         
     def __create_callbacks(self):
         # Adding assistence callbacks
+
         patience = callbacks.EarlyStopping(
             monitor='val_loss', min_delta=1e-2, patience=3
         )
@@ -145,7 +170,8 @@ class Circlet():
         return model_callbacks
         
     def fit(self, X, Y, X_val, Y_val):
-        """Fits the model.
+        """Fits the model. Notice that the index 0 for X should be reserved
+        for padding sentences.
         :param X An integer matrix where each row correspons to a sentence.
         :param Y A 3D a-b-c matrix, where a is the amount of samples, b the
             sequence size and c=1 (ie: amount of possible labels per sample)
@@ -161,18 +187,30 @@ class Circlet():
         
         # then training
         self.history = self.model.fit(
-            X, Y, BATCH_SIZE, epochs=EPOCHS, validation_data=(X_val, Y_val),
+            X, Y, validation_data=(X_val, Y_val),
+            batch_size=self.hyperparams['batch_size'], epochs=self.hyperparams['epochs'],
             callbacks=model_callbacks
         )
         
     def fit_generator(self, gen_train, gen_dev, n_labels):
+        """Fits the model using generators. Notice that the index 0 for X
+        should be reserved for padding sentences.
+        :param X An integer matrix where each row correspons to a sentence.
+        :param Y A 3D a-b-c matrix, where a is the amount of samples, b the
+            sequence size and c=1 (ie: amount of possible labels per sample)
+        :param X_val The validation samples in the same shape as X.
+        :param Y_val The validation labels in the same shape as Y.
+        :returns None
+        """
         
         self.n_labels = n_labels
         self._build_model()
         
         model_callbacks = self.__create_callbacks()
         
+        print('3541')
         self.history = self.model.fit_generator(
-            gen_train, epochs=EPOCHS, validation_data=gen_dev,
+            gen_train, validation_data=gen_dev,
+            epochs=self.hyperparams['epochs'], 
             callbacks=model_callbacks,
         )
