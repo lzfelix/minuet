@@ -1,8 +1,8 @@
 import re
 
-# TODO: improve number parsing
+
 def replace_numbers(w):
-    return re.sub('[0-9]+', '<num>', w)
+    return re.sub('[0-9]', '0', w)
 
 
 def lower(w):
