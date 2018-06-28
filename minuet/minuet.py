@@ -8,32 +8,45 @@ from keras_contrib.layers import CRF
 
 from minuet._model import DeepModel
 
+class CharEmbeddingConfigs:
+    
+    def __init__(self, vocab_size, embedding_size, lstm_size, lstm_drop):
+        self.vocab_size = vocab_size
+        self.embedding_size = embedding_size
+        self.lstm_size = lstm_size
+        self.lstm_drop = lstm_drop
+        
+    def to_dict(self):
+        return {
+            'char_vocab_size': self.vocab_size,
+            'char_embedding_size': self.embedding_size,
+            'char_lstm_size': self.lstm_size,
+            'char_lstm_drop': self.lstm_drop
+        }
+
 
 class Minuet():
     
     def __init__(self, embedding, lstm_size, lstm_drop, bidirectional=False, 
-                 crf=False, char_lstm_size=None, char_embed_size=None,
-                 char_lstm_drop=0, char_vocab_size=None):
+                 crf=False, char_embeddings_conf=None):
         """Creates a Bi-LSTM prediction model
         :param embedding: A v-by-d matrix where v is the vocabulary size and d
-            the word-vectors dimension.
+        the word-vectors dimension.
         :param lstm_size: The size of LSTM layer hidden vectors.
         :param lstm_drop: The variational LSTM dropout probability.
         :param bidirectional: Should the LSTM layer be bidirectional?
+        :param char_embeddings_conf: If supplied, the model will use character
+        embeddings as well.
         """
         
         self.E = embedding
-        self.bidirectional = bidirectional
         self.lstm_size = lstm_size
         self.lstm_drop = lstm_drop
-        
-        self.char_embed_size = char_embed_size
-        self.char_vocab_size = char_vocab_size
-        self.char_lstm_size = char_lstm_size
-        self.char_lstm_drop = char_lstm_drop
-        
+        self.bidirectional = bidirectional
         self.crf = crf
         self.n_labels = None
+        
+        self.char_embed = char_embeddings_conf
         
         self.model = None
         self._model_filepath = None
@@ -65,14 +78,10 @@ class Minuet():
             'lstm_size': self.lstm_size,
             'lstm_dropout': self.lstm_drop,
             
-            'char_vector_size': self.char_embed_size,
-            'char_vocab': self.char_vocab_size,
-            'char_lstm_size': self.char_lstm_size,
-            'char_lstm_dropout': self.char_lstm_drop,
-            
             'amount_classes': self.n_labels,
             'bidirectional': self.bidirectional,
         }
+        description.update(self.char_embed or {})
         description.update(self.hyperparams)
         
         with open(path.join(folder, 'model.json'), 'w') as file:
@@ -113,7 +122,8 @@ class Minuet():
         
         with open(path.join(model_folder, 'model.json')) as file:
             specs = json.load(file)
-            
+
+        # TODO: fix hyperparameters reloading
         lstm_size = specs['lstm_size']
         lstm_drop = specs['lstm_dropout']
         bidirectional = specs['bidirectional']
@@ -144,11 +154,16 @@ class Minuet():
             return
         
         words_input, word_embedding = self.deep.build_word_embedding(self.E)
-        chars_input, char_embedding = self.deep.build_char_embedding(
-            self.char_vocab_size,
-            self.char_embed_size,
-            self.char_lstm_size,
-            self.char_lstm_drop)
+        model_inputs = [words_input]
+        char_embedding = None
+        
+        if self.char_embed:
+            chars_input, char_embedding = self.deep.build_char_embedding(
+                self.char_embed.vocab_size,
+                self.char_embed.embedding_size,
+                self.char_embed.lstm_size,
+                self.char_embed.lstm_drop)
+            model_inputs = [words_input, chars_input]
         
         sentence_embeddings = self.deep.build_sentence_lstm(word_embedding,
                                                             char_embedding,
@@ -163,8 +178,8 @@ class Minuet():
             
         opt = optimizers.Adam(clipnorm=self.hyperparams['clipnorm'])
         
-        self.model = models.Model(inputs=[words_input, chars_input], outputs=[out])
-        self.model.compile(opt, loss=loss, metrics=acc)
+        self.model = models.Model(inputs=model_inputs, outputs=[out])
+        self.model.compile('adam', loss=loss, metrics=acc)
         self.model.summary()
         
     def fit(self, X, Y, X_val, Y_val):
