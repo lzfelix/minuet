@@ -38,6 +38,27 @@ def get_possible_labels(Y: List[List[str]]) -> List[str]:
     return list(set(itertools.chain(*Y)))
 
 
+def get_characters_vocabulary(X, f=None):
+    """Determines all unique characters from the dataset.
+    
+    :param X: List of tokenized sentences.
+    :param f: Preprocessing function applied to every token before analysis.
+    This function can be different from the one used with get_vocabulary.
+    """
+    f = f or (lambda x: x)
+    
+    vocab = {
+        '<pad>': 0,
+        '<unk>': 1,
+    }
+    for sentence in X:
+        for word in sentence:
+            for letter in f(word):
+                if letter not in vocab:
+                    vocab[letter] = len(vocab)
+    return vocab
+
+
 def get_vocabulary(X: List[List[str]], f) -> Set[str]:
     """Determine unique words on the dataset.
     
