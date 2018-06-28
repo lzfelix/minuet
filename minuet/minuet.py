@@ -4,6 +4,7 @@ from os import path
 import numpy as np
 from keras import models
 from keras import optimizers
+from keras_contrib.layers import CRF
 
 from minuet._model import DeepModel
 
@@ -43,7 +44,7 @@ class Minuet():
         self.hyperparams = {
             'batch_size': 16,
             'epochs': 5,
-            'clipnorm': 1.0
+            'clipnorm': 5.0
         }
         
     def _save_model_description(self, folder):
@@ -63,8 +64,14 @@ class Minuet():
             'word_vector_size': self.E.shape[1],
             'lstm_size': self.lstm_size,
             'lstm_dropout': self.lstm_drop,
-            'bidirectional': self.bidirectional,
+            
+            'char_vector_size': self.char_embed_size,
+            'char_vocab': self.char_vocab_size,
+            'char_lstm_size': self.char_lstm_size,
+            'char_lstm_dropout': self.char_lstm_drop,
+            
             'amount_classes': self.n_labels,
+            'bidirectional': self.bidirectional,
         }
         description.update(self.hyperparams)
         
@@ -73,29 +80,53 @@ class Minuet():
         
     @classmethod
     def load(cls, model_folder):
-        """Loads a previously trained Circlet model from a folder.
+        """Loads a previously trained Minuet model from a folder.
         :param model_folder: Path to the folder containing the mode files.
         :returns A loaded circlet instance *without* the E field.
         """
         
+        # solution from https://github.com/keras-team/keras-contrib/issues/129
+        def create_custom_objects():
+            instanceHolder = {"instance": None}
+            
+            class ClassWrapper(CRF):
+                def __init__(self, *args, **kwargs):
+                    instanceHolder["instance"] = self
+                    super(ClassWrapper, self).__init__(*args, **kwargs)
+                    
+            def loss(*args):
+                method = getattr(instanceHolder["instance"], "loss_function")
+                return method(*args)
+            
+            def accuracy(*args):
+                method = getattr(instanceHolder["instance"], "accuracy")
+                return method(*args)
+            
+            return {"ClassWrapper": ClassWrapper ,"CRF": ClassWrapper, "loss": loss, "accuracy":accuracy}
+
+        def load_keras_model(path):
+            model = models.load_model(path, custom_objects=create_custom_objects())
+            return model
+        
         model_filepath = path.join(model_folder, 'model.hdf5')
-        model = models.load_model(model_filepath)
+        model = load_keras_model(model_filepath)
         
         with open(path.join(model_folder, 'model.json')) as file:
             specs = json.load(file)
+            
         lstm_size = specs['lstm_size']
         lstm_drop = specs['lstm_dropout']
         bidirectional = specs['bidirectional']
         n_labels = specs['amount_classes']
         
-        # creating a Circlet instance
-        circlet = cls(None, lstm_size, lstm_drop, bidirectional)
-        circlet.n_labels = n_labels
-        circlet.model = model
-        circlet._model_folder = model_folder
-        circlet._model_filepath = model_filepath
+        # creating a Minuet instance
+        minuet = cls(None, lstm_size, lstm_drop, bidirectional)
+        minuet.n_labels = n_labels
+        minuet.model = model
+        minuet._model_folder = model_folder
+        minuet._model_filepath = model_filepath
         
-        return circlet
+        return minuet
         
     def set_checkpoint_path(self, model_folder):
         """Sets where the best Circlet model will be saved.
