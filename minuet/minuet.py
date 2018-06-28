@@ -3,24 +3,16 @@ from os import path
 
 import numpy as np
 from keras import models
-from keras import callbacks
-from keras.models import Sequential
-from keras.layers import Embedding
-from keras.layers import InputLayer
-from keras.layers import LSTM
-from keras.layers import Dense
-from keras.layers import Input
-from keras.layers import Bidirectional
-from keras_contrib.layers import CRF
+from keras import optimizers
 
-BATCH_SIZE = 16
-EPOCHS = 10
+from minuet._model import DeepModel
 
 
 class Minuet():
     
     def __init__(self, embedding, lstm_size, lstm_drop, bidirectional=False, 
-                 crf=False):
+                 crf=False, char_lstm_size=None, char_embed_size=None,
+                 char_lstm_drop=0, char_vocab_size=None):
         """Creates a Bi-LSTM prediction model
         :param embedding: A v-by-d matrix where v is the vocabulary size and d
             the word-vectors dimension.
@@ -30,19 +22,28 @@ class Minuet():
         """
         
         self.E = embedding
+        self.bidirectional = bidirectional
         self.lstm_size = lstm_size
         self.lstm_drop = lstm_drop
-        self.bidirectional = bidirectional
+        
+        self.char_embed_size = char_embed_size
+        self.char_vocab_size = char_vocab_size
+        self.char_lstm_size = char_lstm_size
+        self.char_lstm_drop = char_lstm_drop
+        
         self.crf = crf
         self.n_labels = None
-        self.model = None
         
+        self.model = None
         self._model_filepath = None
         self._model_folder = None
         
+        self.deep = DeepModel()
+        
         self.hyperparams = {
             'batch_size': 16,
-            'epochs': 10
+            'epochs': 5,
+            'clipnorm': 1.0
         }
         
     def _save_model_description(self, folder):
@@ -54,14 +55,18 @@ class Minuet():
         
         if not self.n_labels:
             raise RuntimeError('Amount of labels not defined yet.')
+            
+        if not folder:
+            return
         
         description = {
             'word_vector_size': self.E.shape[1],
             'lstm_size': self.lstm_size,
             'lstm_dropout': self.lstm_drop,
             'bidirectional': self.bidirectional,
-            'amount_classes': self.n_labels
+            'amount_classes': self.n_labels,
         }
+        description.update(self.hyperparams)
         
         with open(path.join(folder, 'model.json'), 'w') as file:
             json.dump(description, file, indent=4)
@@ -102,72 +107,34 @@ class Minuet():
         self._model_filepath = path.join(model_folder, 'model.hdf5')
         
     def _build_model(self):
-        """Build the model: Embedding > (Bi)?LSTM > Softmax
-        :returns None
-        """
+        """Buils the model defined on the class initialization."""
+        
         if self.model:
             return
         
-        sentence_in = Input(shape=(None,), name='input_layer')
-
-        # word-embedding only
-        embedding = Embedding(
-            self.E.shape[0], self.E.shape[1],
-            weights=[self.E],
-            trainable=False, name='embedding',
-            mask_zero=True
-        )(sentence_in)
-
-        # LSTM part
-        lstm = LSTM(
-            self.lstm_size, dropout=self.lstm_drop,
-            recurrent_dropout=self.lstm_drop, return_sequences=True,
-            name='LSTM'
-        )
+        words_input, word_embedding = self.deep.build_word_embedding(self.E)
+        chars_input, char_embedding = self.deep.build_char_embedding(
+            self.char_vocab_size,
+            self.char_embed_size,
+            self.char_lstm_size,
+            self.char_lstm_drop)
         
-        if self.bidirectional:
-            lstm = Bidirectional(lstm, name='BiLSTM')
-        lstm = lstm(embedding)
-
+        sentence_embeddings = self.deep.build_sentence_lstm(word_embedding,
+                                                            char_embedding,
+                                                            self.lstm_size,
+                                                            self.lstm_drop,
+                                                            self.bidirectional)
+        
         if self.crf:
-            crf = CRF(self.n_labels, sparse_target=True)
-            output = crf(lstm)
-            
-            loss_fun = crf.loss_function
-            metrics = [crf.accuracy]
+            out, loss, acc = self.deep.build_crf_output(sentence_embeddings, self.n_labels)
         else:
-            # Output part
-            output = Dense(self.n_labels, activation='softmax',
-                           name='output')(lstm)
-            loss_fun = 'sparse_categorical_crossentropy'
-            metrics = ['sparse_categorical_accuracy']
-
-        # Compiling the model
-        model = models.Model(inputs=[sentence_in], outputs=[output])
-        model.compile('adam', loss=loss_fun, metrics=metrics)
-        
-        print(model.optimizer)
-        model.summary()
-        self.model = model
-        
-    def __create_callbacks(self):
-        # Adding assistence callbacks
-
-        patience = callbacks.EarlyStopping(
-            monitor='val_loss', min_delta=1e-2, patience=3
-        )
-        model_callbacks = [patience]
-        
-        if self._model_filepath:
-            checkpoint = callbacks.ModelCheckpoint(
-                self._model_filepath, monitor='val_loss',
-                verbose=1, save_best_only=True, save_weights_only=False, mode='auto'
-            )
-            model_callbacks.append(checkpoint)
+            out, loss, acc = self.deep.build_softmax_output(sentence_embeddings, self.n_labels)
             
-            self._save_model_description(self._model_folder)
-            
-        return model_callbacks
+        opt = optimizers.Adam(clipnorm=self.hyperparams['clipnorm'])
+        
+        self.model = models.Model(inputs=[words_input, chars_input], outputs=[out])
+        self.model.compile(opt, loss=loss, metrics=acc)
+        self.model.summary()
         
     def fit(self, X, Y, X_val, Y_val):
         """Fits the model. Notice that the index 0 for X should be reserved
@@ -182,8 +149,9 @@ class Minuet():
         
         self.n_labels = np.unique(Y).size
         self._build_model()
-        
-        model_callbacks = self.__create_callbacks()
+
+        model_callbacks = self.deep.create_callbacks(1e-2, 3, self._model_filepath)
+        self._save_model_description(self._model_folder)
         
         # then training
         self.history = self.model.fit(
@@ -203,10 +171,13 @@ class Minuet():
         :returns None
         """
         
+        raise NotImplementedError('Comming soon(TM)')
+        
         self.n_labels = n_labels
         self._build_model()
         
-        model_callbacks = self.__create_callbacks()
+        model_callbacks = self.deep.create_callbacks(1e-2, 3, self._model_filepath)
+        self._save_model_description(self._model_folder)
         
         print('3541')
         self.history = self.model.fit_generator(
