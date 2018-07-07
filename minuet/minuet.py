@@ -4,7 +4,6 @@ from os import path
 import numpy as np
 from keras import models
 from keras import optimizers
-from keras_contrib.layers import CRF
 
 from minuet._model import DeepModel
 
@@ -55,7 +54,7 @@ class Minuet():
         self.deep = DeepModel()
         
         self.hyperparams = {
-            'batch_size': 16,
+            'batch_size': 32,
             'epochs': 5,
             'clipnorm': 5.0
         }
@@ -176,7 +175,8 @@ class Minuet():
         else:
             out, loss, acc = self.deep.build_softmax_output(sentence_embeddings, self.n_labels)
             
-        opt = optimizers.Adam(clipnorm=self.hyperparams['clipnorm'])
+        #opt = optimizers.Adam(clipnorm=self.hyperparams['clipnorm'])
+        opt = optimizers.Adam()
         
         self.model = models.Model(inputs=model_inputs, outputs=[out])
         self.model.compile('adam', loss=loss, metrics=acc)
@@ -192,14 +192,13 @@ class Minuet():
         :param Y_val The validation labels in the same shape as Y.
         :returns None
         """
-        
+
         self.n_labels = np.unique(Y).size
         self._build_model()
 
-        model_callbacks = self.deep.create_callbacks(1e-2, 3, self._model_filepath)
         self._save_model_description(self._model_folder)
-        
-        # then training
+
+        model_callbacks = self.deep.create_callbacks(1e-2, 3, self._model_filepath)
         self.history = self.model.fit(
             X, Y, validation_data=(X_val, Y_val),
             batch_size=self.hyperparams['batch_size'], epochs=self.hyperparams['epochs'],

@@ -1,7 +1,6 @@
-numpy
+numpy==1.13.3
 gensim
 sklearn
 h5py
 keras==2.2.0
 tensorflow==1.8.0
-

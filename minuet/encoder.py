@@ -179,5 +179,5 @@ def encode_labels(Y, max_sequence_len=None, encoder=None):
         y_ = encoder.transform(Y)
         
     if max_sequence_len:
-        y_ = sequence.pad_sequences(y_, max_sequence_len, truncating='post', padding='post')
+        y_ = sequence.pad_sequences(y_, max_sequence_len, truncating='post', padding='pre')
     return y_, encoder
