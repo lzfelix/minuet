@@ -58,7 +58,8 @@ def sentence_to_characters(X, character_map, word_padding, sent_padding=0, f=Non
     def adjust_encoded(encoded, maxlen, filler):
         if len(encoded) > maxlen:
             return encoded[:maxlen]
-        return filler * (maxlen - len(encoded)) + encoded
+        # return filler * (maxlen - len(encoded)) + encoded
+        return encoded + filler * (maxlen - len(encoded))
     
     def adjust_encoded_word(encoded, maxlen):
         """Either pad or trim a word sequence of chars to have maxlen characters."""
@@ -119,7 +120,7 @@ def sentence_to_index(X, word2index, pre, max_sequence_len=None):
             all_sentences,
             max_sequence_len,
             truncating='post',
-            padding='pre')
+            padding='post')
     else:
         return all_sentences
 
@@ -179,5 +180,5 @@ def encode_labels(Y, max_sequence_len=None, encoder=None):
         y_ = encoder.transform(Y)
         
     if max_sequence_len:
-        y_ = sequence.pad_sequences(y_, max_sequence_len, truncating='post', padding='pre')
+        y_ = sequence.pad_sequences(y_, max_sequence_len, truncating='post', padding='post')
     return y_, encoder

@@ -6,6 +6,7 @@ from keras import models
 from keras import optimizers
 
 from minuet._model import DeepModel
+from minuet import encoder
 
 class CharEmbeddingConfigs:
     
@@ -176,7 +177,6 @@ class Minuet():
             out, loss, acc = self.deep.build_softmax_output(sentence_embeddings, self.n_labels)
             
         #opt = optimizers.Adam(clipnorm=self.hyperparams['clipnorm'])
-        opt = optimizers.Adam()
         
         self.model = models.Model(inputs=model_inputs, outputs=[out])
         self.model.compile('adam', loss=loss, metrics=acc)
@@ -230,3 +230,31 @@ class Minuet():
             epochs=self.hyperparams['epochs'], 
             callbacks=model_callbacks,
         )
+
+    def predict(self, X, word2index, char2index, pre_word, pre_char, word_len):
+        """Helper method to perform predictions.
+        :param X: A list of samples, where each is a tokenized list of words.
+        :param word2index: a dictionary mapping words to their row on the embedding matrix
+        :param char2index: a dictionary mapping chars to their row on the embedding matrix
+        :param pre_word: preprocessing pipeline for each sentence.
+        :param pre_char: preprocessing pipeline applied to the characters of each word
+        :param word_len: the maximum lenght of each word, if smaller it's padded, if larger
+        it's trimmed.
+        :return matrix n-by-l where n is the number of sentences in X and l is the size of the
+        longest sentence in X, some of these labels are predictions over paddings and should be
+        disregarded.
+        """
+        
+        # make every sentence the size of the longest one
+        sent_len = max(len(x) for x in X)
+
+        # encode sentences and words (if used)
+        sample_words = encoder.sentence_to_index(X, word2index, pre_word, sent_len)
+        if word_len:
+            sample_chars = encoder.sentence_to_characters(X, char2index, word_len, sent_len, pre_char)
+            inputs = [sample_words, sample_chars]
+        else:
+            inputs = [sample_words]
+
+        predictions = self.model.predict(inputs)
+        return np.argmax(predictions, axis=-1)
