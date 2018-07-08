@@ -4,4 +4,6 @@ __pycache__/
 *.swp
 *.bin
 *.npy
+*.zip
+*.egg*
 
