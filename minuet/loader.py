@@ -76,13 +76,15 @@ def get_vocabulary(X: List[List[str]], f) -> Set[str]:
     return vocab
 
 
-def load_embeddings(filepath: str, vocabulary: Set[str]) -> Tuple[Dict, np.ndarray]:
+def load_embeddings(filepath: str, vocabulary: Set[str], retain: bool=False) -> Tuple[Dict, np.ndarray]:
     """
     Loads the word embeddings for the necessary words only. Words not known by the
     model are skipped.
     
     :param filepath: Path to file with embedding vectors on gensim formet.
-    :param vocabulary Vocabulary to be mapped to word vectors.
+    :param vocabulary: Vocabulary to be mapped to word vectors.
+    :param retain: If True, Minuet will retain all vectors from the underlying model,
+    otherwise it will keep only the vectors of the words seen on the training data, making the model smaller in terms of memory and storage requirements.
     :returns (V, E) where V maps words to their row number on the embedding matrix E.
     """
     
@@ -102,9 +104,13 @@ def load_embeddings(filepath: str, vocabulary: Set[str]) -> Tuple[Dict, np.ndarr
         vector = np.random.uniform(-0.025, 0.025, (dim,))
         add_entry(special, vector)
 
-    for word in vocabulary:
-        if word in model:
+    if retain:
+        for word, _ in model.vocab.items():
             add_entry(word, model[word])
+    else:
+        for word in vocabulary:
+            if word in model:
+                add_entry(word, model[word])
 
     vocabulary = vocabulary.intersection(word2index.keys())
     return word2index, np.asarray(word_vectors)
