@@ -78,6 +78,8 @@ class Minuet():
         self.model = None
         self._model_filepath = None
         self._model_folder = None
+
+        self._label_encoder = None
         
         self.deep = DeepModel()
         
@@ -106,6 +108,7 @@ class Minuet():
             self.char_embed
         )
         minuet_copy.n_labels = self.n_labels
+        minuet_copy._label_encoder = self._label_encoder
 
         # pickling
         with open(path.join(folder, 'model.pyk'), 'wb') as file:
@@ -169,6 +172,13 @@ class Minuet():
         minuet.model = model
 
         return minuet
+
+    def set_label_encoder(self, label_encoder):
+        """Stores the label encoder, making it being saved along the model."""
+        if not isinstance(label_encoder, encoder.SequenceLabelEncoder):
+            raise RuntimeError('Only SequenceLabelEncoder objects can be stored.')
+
+        self._label_encoder = label_encoder
         
     def set_checkpoint_path(self, model_folder):
         """Sets where the best Circlet model will be saved.
@@ -292,4 +302,11 @@ class Minuet():
                                                      ce.noise_proba)
             out = [X_words, X_chars]
         return out 
+
+    def decode_predictions(self, predictions):
+        """Converts class indices to labels."""
+        if not self._label_encoder:
+            raise RuntimeError('Label decoder not found.')
+
+        return self._label_encoder.inverse_transform(predictions)
 
