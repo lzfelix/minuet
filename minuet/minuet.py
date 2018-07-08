@@ -2,6 +2,7 @@ import json
 from os import path
 
 import numpy as np
+import cloudpickle as pickle
 from keras import models
 from keras import optimizers
 from keras_contrib.layers import CRF
@@ -86,18 +87,31 @@ class Minuet():
         }
 
     def _save_model_description(self, folder):
-        """Serializes the object parameters as a lightweight JSON file.
-        
-        :param folder: The Circlet folder.
-        :returns None
-        """
-        
         if not self.n_labels:
             raise RuntimeError('Amount of labels is not defined yet.')
             
         if not folder:
             return
-        
+
+        # creating a Minuet copy without word embeddings
+        minuet_copy = Minuet(
+            self.word2index,
+            self.pre_word,
+            None,
+            self.lstm_size,
+            self.lstm_drop,
+            self.sent_noise_proba,
+            self.bidirectional,
+            self.crf,
+            self.char_embed
+        )
+        minuet_copy.n_labels = self.n_labels
+
+        # pickling
+        with open(path.join(folder, 'model.pyk'), 'wb') as file:
+            pickle.dump(minuet_copy, file)
+
+        # generating JSON description for manual inspection
         description = {
             'word_vector_size': self._E.shape[1],
             'lstm_size': self.lstm_size,
@@ -114,7 +128,7 @@ class Minuet():
 
         with open(path.join(folder, 'model.json'), 'w') as file:
             json.dump(description, file, indent=4)
-        
+
     @classmethod
     def load(cls, model_folder):
         """Loads a previously trained Minuet model from a folder.
@@ -148,34 +162,12 @@ class Minuet():
         # load model architecture and weights
         model_filepath = path.join(model_folder, 'model.hdf5')
         model = load_keras_model(model_filepath)
-        
-        # load model parameters stored on the Python object
-        with open(path.join(model_folder, 'model.json')) as file:
-            specs = json.load(file)
 
-        lstm_size = specs['lstm_size']
-        lstm_drop = specs['lstm_dropout']
-        bidirectional = specs['bidirectional']
-        crf = specs['crf']
-        n_labels = specs['amount_classes']
-        
-        # load parameters specific to char embeddings
-        char_specs = specs.get('char_embedding', None)
-        if char_specs:
-            char_configs = CharEmbeddingConfigs(
-                char_specs['amount_chars'],
-                char_specs['embedding_size'],
-                char_specs['lstm_size'],
-                char_specs['lstm_drop']
-            )
-        
-        # creating a Minuet instance
-        minuet = cls(None, lstm_size, lstm_drop, bidirectional, crf, char_specs)
-        minuet.n_labels = n_labels
+        # load Minuet object
+        with open(path.join(model_folder, 'model.pyk'), 'rb') as file:
+            minuet = pickle.load(file)
         minuet.model = model
-        minuet._model_folder = model_folder
-        minuet._model_filepath = model_filepath
-        
+
         return minuet
         
     def set_checkpoint_path(self, model_folder):
@@ -237,15 +229,14 @@ class Minuet():
         self.n_labels = np.unique(Y).size
         self._build_model()
 
-        self._save_model_description(self._model_folder)
-
         model_callbacks = self.deep.create_callbacks(1e-2, 3, self._model_filepath)
         self.history = self.model.fit(
             X, Y, validation_data=(X_val, Y_val),
             batch_size=self.hyperparams['batch_size'], epochs=self.hyperparams['epochs'],
             callbacks=model_callbacks
         )
-        
+        self._save_model_description(self._model_folder)
+
     def fit_generator(self, gen_train, gen_dev, n_labels):
         """Fits the model using generators. Notice that the index 0 for X
         should be reserved for padding sentences.
