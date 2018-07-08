@@ -11,26 +11,47 @@ from minuet import encoder
 
 class CharEmbeddingConfigs:
     
-    def __init__(self, amount_chars, embedding_size, lstm_size, lstm_drop):
-        self.amount_chars = amount_chars
+    def __init__(self, char2index,
+                 preprocessing,
+                 maxlen,
+                 embedding_size,
+                 lstm_size,
+                 lstm_drop,
+                 noise_proba=0):
+        """Character embedding hyperparameters."""
+
+        self.amount_chars = len(char2index)
+        self.char2index = char2index
+        self.pre = preprocessing
+        self.maxlen = maxlen
         self.embedding_size = embedding_size
         self.lstm_size = lstm_size
         self.lstm_drop = lstm_drop
+        self.noise_proba = noise_proba
         
     def to_dict(self):
         return {
             'amount_chars': self.amount_chars,
-            'char_embedding_size': self.embedding_size,
-            'char_lstm_size': self.lstm_size,
-            'char_lstm_drop': self.lstm_drop
+            'embedding_size': self.embedding_size,
+            'lstm_size': self.lstm_size,
+            'lstm_drop': self.lstm_drop,
+            'maxlen': self.maxlen,
+            'noise_proba': self.noise_proba
         }
 
 
 class Minuet():
     
-    def __init__(self, embedding, lstm_size, lstm_drop, bidirectional=False, 
-                 crf=False, char_embeddings_conf=None):
-        """Creates a Bi-LSTM prediction model
+    def __init__(self, word2index,
+                 pre_word,
+                 word_embedding,
+                 lstm_size,
+                 lstm_drop,
+                 sent_noise_proba=0,
+                 bidirectional=False,
+                 crf=False,
+                 char_embeddings_conf=None):
+        """Creates a Bi-LSTM prediction model.
         :param embedding: A v-by-d matrix where v is the vocabulary size and d
         the word-vectors dimension.
         :param lstm_size: The size of LSTM layer hidden vectors.
@@ -40,7 +61,7 @@ class Minuet():
         embeddings as well.
         """
         
-        self._E = embedding                     # This field is None on loaded models!
+        self._E = word_embedding
         self.lstm_size = lstm_size
         self.lstm_drop = lstm_drop
         self.bidirectional = bidirectional
@@ -48,6 +69,10 @@ class Minuet():
         self.n_labels = None
         
         self.char_embed = char_embeddings_conf
+
+        self.word2index = word2index
+        self.pre_word = pre_word
+        self.sent_noise_proba = sent_noise_proba
         
         self.model = None
         self._model_filepath = None
@@ -59,7 +84,7 @@ class Minuet():
             'batch_size': 32,
             'epochs': 5
         }
-        
+
     def _save_model_description(self, folder):
         """Serializes the object parameters as a lightweight JSON file.
         
@@ -68,7 +93,7 @@ class Minuet():
         """
         
         if not self.n_labels:
-            raise RuntimeError('Amount of labels not defined yet.')
+            raise RuntimeError('Amount of labels is not defined yet.')
             
         if not folder:
             return
@@ -77,14 +102,16 @@ class Minuet():
             'word_vector_size': self._E.shape[1],
             'lstm_size': self.lstm_size,
             'lstm_dropout': self.lstm_drop,
+            'noise_proba': self.sent_noise_proba,
             
             'bidirectional': self.bidirectional,
             'crf': self.crf,
             'amount_classes': self.n_labels,
         }
-        description['char_embedding'] = vars(self.char_embed or {})
+        char_embed_data = self.char_embed.to_dict() if self.char_embed else dict()
+        description['char_embedding'] = char_embed_data
         description['hyperparams'] = self.hyperparams
-        
+
         with open(path.join(folder, 'model.json'), 'w') as file:
             json.dump(description, file, indent=4)
         
@@ -154,6 +181,7 @@ class Minuet():
     def set_checkpoint_path(self, model_folder):
         """Sets where the best Circlet model will be saved.
         :param model_folder: Path to a *folder* that will hold Circlet files.
+        :param word2index: Dicionarty mapping words to their IDs
         :returns None
         """
         
@@ -244,30 +272,33 @@ class Minuet():
             callbacks=model_callbacks,
         )
 
-    def predict(self, X, word2index, char2index, pre_word, pre_char, word_len):
-        """Helper method to perform predictions.
-        :param X: A list of samples, where each is a tokenized list of words.
-        :param word2index: a dictionary mapping words to their row on the embedding matrix
-        :param char2index: a dictionary mapping chars to their row on the embedding matrix
-        :param pre_word: preprocessing pipeline for each sentence.
-        :param pre_char: preprocessing pipeline applied to the characters of each word
-        :param word_len: the maximum lenght of each word, if smaller it's padded, if larger
-        it's trimmed.
-        :return matrix n-by-l where n is the number of sentences in X and l is the size of the
-        longest sentence in X, some of these labels are predictions over paddings and should be
-        disregarded.
+    def predict(self, X):
+        """Predicts over a set of samples.
+        :param X: a list of sentences, where each sentence is a list of words.
+        :return n-by-l matrix, where n is the number of sentences and l
+        the length of the longest sample.
         """
         
         # make every sentence the size of the longest one
         sent_len = max(len(x) for x in X)
 
-        # encode sentences and words (if used)
-        sample_words = encoder.sentence_to_index(X, word2index, pre_word, sent_len)
-        if word_len:
-            sample_chars = encoder.sentence_to_characters(X, char2index, word_len, sent_len, pre_char)
-            inputs = [sample_words, sample_chars]
-        else:
-            inputs = [sample_words]
+        inputs = self.prepare_samples(X, sent_len)
+        return np.argmax(self.model.predict(inputs), axis=-1)
 
-        predictions = self.model.predict(inputs)
-        return np.argmax(predictions, axis=-1)
+    def prepare_samples(self, X, sent_maxlen):
+        """Prepare samples to be classified by the model.
+        :param X: List of sentences, where each sentence is a list of words.
+        :return u or [u, v]: where u are the word embeddings and v the char
+        embeddings (if used).
+        """
+        X_words = encoder.sentence_to_index(X, self.word2index, self.pre_word, 
+                                            sent_maxlen, self.sent_noise_proba)
+        out = X_words
+        if self.char_embed:
+            ce = self.char_embed
+            X_chars = encoder.sentence_to_characters(X, ce.char2index, ce.maxlen,
+                                                     sent_maxlen, ce.pre, 
+                                                     ce.noise_proba)
+            out = [X_words, X_chars]
+        return out 
+
