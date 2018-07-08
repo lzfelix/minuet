@@ -38,7 +38,7 @@ def get_possible_labels(Y: List[List[str]]) -> List[str]:
     return list(set(itertools.chain(*Y)))
 
 
-def get_characters_vocabulary(X, f=None):
+def get_characters_mapping(X, f=None):
     """Determines all unique characters from the dataset.
     
     :param X: List of tokenized sentences.

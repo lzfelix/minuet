@@ -15,7 +15,7 @@ def sentence_to_characters(X, character_map, word_padding, sent_padding=0, f=Non
     :param character_map: A dict mapping characters to their IDs, the ID 0 is
     expected to correspond to the padding token <pad>.
     :param word_padding: The final length of each array of chars, smaller words
-    are padded on the *left* with zeros. For larger arrays, only the first n
+    are padded on the *right* with zeros. For larger arrays, only the first n
     elements on the *left* are kept.
     :param sent_padding: Every sentence in terms of chars representation will be
     adjusted to have this amount of words. If None or 0, the lenght of each sentence
