@@ -40,7 +40,7 @@ class Minuet():
         embeddings as well.
         """
         
-        self.E = embedding
+        self._E = embedding                     # This field is None on loaded models!
         self.lstm_size = lstm_size
         self.lstm_drop = lstm_drop
         self.bidirectional = bidirectional
@@ -74,7 +74,7 @@ class Minuet():
             return
         
         description = {
-            'word_vector_size': self.E.shape[1],
+            'word_vector_size': self._E.shape[1],
             'lstm_size': self.lstm_size,
             'lstm_dropout': self.lstm_drop,
             
@@ -166,7 +166,7 @@ class Minuet():
         if self.model:
             return
         
-        words_input, word_embedding = self.deep.build_word_embedding(self.E)
+        words_input, word_embedding = self.deep.build_word_embedding(self._E)
         model_inputs = [words_input]
         char_embedding = None
         
