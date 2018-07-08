@@ -3,9 +3,10 @@ from keras.preprocessing import sequence
 from sklearn.preprocessing import LabelEncoder
 
 UNK_WORD_INDEX = 1
+UNK_CHAR_INDEX = 1
 
 
-def sentence_to_characters(X, character_map, word_padding, sent_padding=0, f=None):
+def sentence_to_characters(X, character_map, word_padding, sent_padding=0, f=None, noise_proba=0):
     """Computes the character index for each word in a sentence.
     Each word in a sentence is mapped to an array of character index. These
     index are grouped in another array, which described a single sentence
@@ -23,7 +24,7 @@ def sentence_to_characters(X, character_map, word_padding, sent_padding=0, f=Non
     :param f: A preprocessing function applied to each word before performing
     any computation. This preprocessing might be different from the one used
     to compute sentence representations on the word level.
-    :param pad_sentence: If True 
+    :param noise_proba: Probability to replace a word token by a unk token.
     
     :returns If sent_padding is specified, returns a n-s-l matrix where n is the 
     amount of rows in X (samples), s is the sent_padding parameter and l is the
@@ -79,7 +80,11 @@ def sentence_to_characters(X, character_map, word_padding, sent_padding=0, f=Non
         for word in sentence:
             encoded_word = list()
             for char in f(word):
-                encoded_word.append(character_map.get(char, 1))
+                if np.random.rand() < noise_proba:
+                    index = UNK_CHAR_INDEX
+                else:
+                    index = character_map.get(char, UNK_CHAR_INDEX)
+                encoded_word.append(index)
                 
             encoded_word = adjust_encoded_word(encoded_word, word_padding)
             encoded_sentence.append(encoded_word)
@@ -93,17 +98,20 @@ def sentence_to_characters(X, character_map, word_padding, sent_padding=0, f=Non
     return encoded_corpus
 
 
-def sentence_to_index(X, word2index, pre, max_sequence_len=None):
+def sentence_to_index(X, word2index, pre, max_sequence_len=None, noise_proba=0):
     """Converts sentences as lists of words to list of word ids.
     :param X: List of lists of words, each representing a sentence.
     :param word2index: Dict mapping each word to its ID.
     :param pre: Preprocessing functions to be applied to each word of X.
     :param max_sequence_len: Smaller sequences will be prepended with zeros and
     larger ones will be trimmed at the end. If None, no adjustment is performed.
+    :param noise_proba: Probability to replace a word token by a unk token.
     :returns Depends on max_sequence_len. If None, returns a list of lists
     otherwise a m-by-d matrix of word IDs (from word2index) where m is the
     amount of samples and d the word-vectors size.
     """
+    
+    pre = pre or (lambda x: x)
     
     all_sentences = list()
     for sentence in X:
@@ -111,7 +119,10 @@ def sentence_to_index(X, word2index, pre, max_sequence_len=None):
 
         for word in sentence:
             word = pre(word)
-            index = word2index.get(word, UNK_WORD_INDEX)
+            if np.random.rand() < noise_proba:
+                index = UNK_WORD_INDEX
+            else:
+                index = word2index.get(word, UNK_WORD_INDEX)
             sentence_indices.append(index)
         all_sentences.append(sentence_indices)
         
