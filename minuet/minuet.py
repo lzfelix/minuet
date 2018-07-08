@@ -4,21 +4,22 @@ from os import path
 import numpy as np
 from keras import models
 from keras import optimizers
+from keras_contrib.layers import CRF
 
 from minuet._model import DeepModel
 from minuet import encoder
 
 class CharEmbeddingConfigs:
     
-    def __init__(self, vocab_size, embedding_size, lstm_size, lstm_drop):
-        self.vocab_size = vocab_size
+    def __init__(self, amount_chars, embedding_size, lstm_size, lstm_drop):
+        self.amount_chars = amount_chars
         self.embedding_size = embedding_size
         self.lstm_size = lstm_size
         self.lstm_drop = lstm_drop
         
     def to_dict(self):
         return {
-            'char_vocab_size': self.vocab_size,
+            'amount_chars': self.amount_chars,
             'char_embedding_size': self.embedding_size,
             'char_lstm_size': self.lstm_size,
             'char_lstm_drop': self.lstm_drop
@@ -56,8 +57,7 @@ class Minuet():
         
         self.hyperparams = {
             'batch_size': 32,
-            'epochs': 5,
-            'clipnorm': 5.0
+            'epochs': 5
         }
         
     def _save_model_description(self, folder):
@@ -78,11 +78,12 @@ class Minuet():
             'lstm_size': self.lstm_size,
             'lstm_dropout': self.lstm_drop,
             
-            'amount_classes': self.n_labels,
             'bidirectional': self.bidirectional,
+            'crf': self.crf,
+            'amount_classes': self.n_labels,
         }
-        description.update(self.char_embed or {})
-        description.update(self.hyperparams)
+        description['char_embedding'] = vars(self.char_embed or {})
+        description['hyperparams'] = self.hyperparams
         
         with open(path.join(folder, 'model.json'), 'w') as file:
             json.dump(description, file, indent=4)
@@ -90,7 +91,7 @@ class Minuet():
     @classmethod
     def load(cls, model_folder):
         """Loads a previously trained Minuet model from a folder.
-        :param model_folder: Path to the folder containing the mode files.
+        :param model_folder: Path to the folder containing the model files.
         :returns A loaded circlet instance *without* the E field.
         """
         
@@ -117,20 +118,32 @@ class Minuet():
             model = models.load_model(path, custom_objects=create_custom_objects())
             return model
         
+        # load model architecture and weights
         model_filepath = path.join(model_folder, 'model.hdf5')
         model = load_keras_model(model_filepath)
         
+        # load model parameters stored on the Python object
         with open(path.join(model_folder, 'model.json')) as file:
             specs = json.load(file)
 
-        # TODO: fix hyperparameters reloading
         lstm_size = specs['lstm_size']
         lstm_drop = specs['lstm_dropout']
         bidirectional = specs['bidirectional']
+        crf = specs['crf']
         n_labels = specs['amount_classes']
         
+        # load parameters specific to char embeddings
+        char_specs = specs.get('char_embedding', None)
+        if char_specs:
+            char_configs = CharEmbeddingConfigs(
+                char_specs['amount_chars'],
+                char_specs['embedding_size'],
+                char_specs['lstm_size'],
+                char_specs['lstm_drop']
+            )
+        
         # creating a Minuet instance
-        minuet = cls(None, lstm_size, lstm_drop, bidirectional)
+        minuet = cls(None, lstm_size, lstm_drop, bidirectional, crf, char_specs)
         minuet.n_labels = n_labels
         minuet.model = model
         minuet._model_folder = model_folder
@@ -159,7 +172,7 @@ class Minuet():
         
         if self.char_embed:
             chars_input, char_embedding = self.deep.build_char_embedding(
-                self.char_embed.vocab_size,
+                self.char_embed.amount_chars,
                 self.char_embed.embedding_size,
                 self.char_embed.lstm_size,
                 self.char_embed.lstm_drop)
