@@ -283,10 +283,10 @@ class Minuet():
         # make every sentence the size of the longest one
         sent_len = max(len(x) for x in X)
 
-        inputs = self._prepare_samples(X, sent_len)
+        inputs = self.prepare_samples(X, sent_len)
         return np.argmax(self.model.predict(inputs), axis=-1)
 
-    def _prepare_samples(self, X, sent_maxlen):
+    def prepare_samples(self, X, sent_maxlen):
         """Prepare samples to be classified by the model.
         :param X: List of sentences, where each sentence is a list of words.
         :return u or [u, v]: where u are the word embeddings and v the char
