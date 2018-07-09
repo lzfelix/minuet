@@ -14,10 +14,10 @@ class CharEmbeddingConfigs:
     
     def __init__(self, char2index,
                  preprocessing,
-                 maxlen,
-                 embedding_size,
-                 lstm_size,
-                 lstm_drop,
+                 maxlen=10,
+                 embedding_size=32,
+                 lstm_size=16,
+                 lstm_drop=0.5,
                  noise_proba=0):
         """Character embedding hyperparameters."""
 
@@ -46,8 +46,8 @@ class Minuet():
     def __init__(self, word2index,
                  pre_word,
                  word_embedding,
-                 lstm_size,
-                 lstm_drop,
+                 lstm_size=32,
+                 lstm_drop=0.5,
                  sent_noise_proba=0,
                  bidirectional=False,
                  crf=False,
@@ -283,10 +283,10 @@ class Minuet():
         # make every sentence the size of the longest one
         sent_len = max(len(x) for x in X)
 
-        inputs = self.prepare_samples(X, sent_len)
+        inputs = self._prepare_samples(X, sent_len)
         return np.argmax(self.model.predict(inputs), axis=-1)
 
-    def prepare_samples(self, X, sent_maxlen):
+    def _prepare_samples(self, X, sent_maxlen):
         """Prepare samples to be classified by the model.
         :param X: List of sentences, where each sentence is a list of words.
         :return u or [u, v]: where u are the word embeddings and v the char
@@ -303,7 +303,7 @@ class Minuet():
             out = [X_words, X_chars]
         return out 
 
-    def decode_predictions(self, predictions):
+    def decode_predictions(self, X, predictions):
         """Converts class indices to labels."""
         if not self._label_encoder:
             raise RuntimeError('Label decoder not found.')
