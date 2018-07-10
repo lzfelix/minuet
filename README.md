@@ -56,7 +56,7 @@ This section describes a brief usage of Minuet. The full (and more complex) code
    )
    ```
 
-   You are free to either use the provided functions or to create your own, as long as the follow the signature `def fun(s: str) -> str`. Notice that these functions are not suitable to perform word segmentation, which should be done as a step previous to the usage of the model.
+   You are free to either use the provided functions or to create your own, as long as they follow the signature `def fun(s: str) -> str`. Notice that these functions are not suitable to perform word segmentation, which should be done as a step previous to the usage of the model.
 
 
 3. Encode the text labels as numbers to train the model. This step is akin to `sklearn`:
@@ -108,7 +108,7 @@ This section describes a brief usage of Minuet. The full (and more complex) code
 
    ```python
    labels = model.predict(test_sentences)
-   labels = label_encoder.inverse_transform(labels)
+   labels = model.decode_predictions(labels)
    ```
 
 
