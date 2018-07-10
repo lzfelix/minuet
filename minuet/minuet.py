@@ -303,7 +303,7 @@ class Minuet():
             out = [X_words, X_chars]
         return out 
 
-    def decode_predictions(self, X, predictions):
+    def decode_predictions(self, predictions):
         """Converts class indices to labels."""
         if not self._label_encoder:
             raise RuntimeError('Label decoder not found.')
