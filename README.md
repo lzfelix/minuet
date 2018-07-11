@@ -6,7 +6,7 @@
 
 Minuet is an opinionated library to perform NLP sequence tagging tasks, such as Named Entity Recognition, Part-of-Speech Tagging and Chunking, by just changing the dataset, while keeping the model untouched. Despite this, Minuet allows the user to choose which parts to use and turn off when building a new model. Think about it as a Lego library: if the goal is to fit a model quickly, you can use the default values and options, but you are also allowed to fine-tune the model hyperparameters and architecture if you wish to do so. The library was designed to be as self-contained as possible, avoiding being a black-box and allowing easy traning, disk persistence, reloading and serving. A few illustrations of these functionalities are provided on `examples/` .
 
-
+![Model architecture](https://raw.githubusercontent.com/lzfelix/minuet/master/model.png)
 
 ## Features
 
@@ -127,7 +127,7 @@ Minuet implementation is loosely based on a paper by `Lample et al. "Neural Arch
 
 ### Coming Soon
 
-* Model architecture diagram;
+* ~~Model architecture diagram;~~
 * Improved and public tests;
 * Training with generator, removing the need to pad samples;
 * Benchmarks and ablation tests.
