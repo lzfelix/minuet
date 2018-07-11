@@ -5,13 +5,14 @@ import numpy as np
 import cloudpickle as pickle
 from keras import models
 from keras import optimizers
-from keras_contrib.layers import CRF
 
 from minuet._model import DeepModel
+from minuet import _utils
 from minuet import encoder
 
+
 class CharEmbeddingConfigs:
-    
+
     def __init__(self, char2index,
                  preprocessing,
                  maxlen=10,
@@ -19,7 +20,18 @@ class CharEmbeddingConfigs:
                  lstm_size=16,
                  lstm_drop=0.5,
                  noise_proba=0):
-        """Character embedding hyperparameters."""
+        """Character embedding hyperparameters.
+
+        :param char2index: dict mapping each char to their ID on the
+        embedding matrix
+        :param preprocessing: A preprocessing pipeline from minuet.preprocessing
+        :param maxlen: The maximum amount of characters that a word can have,
+        smaller words are padded, larger are trimmed
+        :param embedding_size: Number of columns on the char embedding matrix
+        :param lstm_size: Size of the LSTM vectors on each direction
+        :param lstm_drop: Dropout prob for forward and recurrent connections
+        :param noise_proba: Proba in which chars are replaced by the UNK token
+        """
 
         self.amount_chars = len(char2index)
         self.char2index = char2index
@@ -31,6 +43,7 @@ class CharEmbeddingConfigs:
         self.noise_proba = noise_proba
         
     def to_dict(self):
+        """Returns a dictionary representation of this object."""
         return {
             'amount_chars': self.amount_chars,
             'embedding_size': self.embedding_size,
@@ -52,14 +65,19 @@ class Minuet():
                  bidirectional=False,
                  crf=False,
                  char_embeddings_conf=None):
-        """Creates a Bi-LSTM prediction model.
-        :param embedding: A v-by-d matrix where v is the vocabulary size and d
-        the word-vectors dimension.
-        :param lstm_size: The size of LSTM layer hidden vectors.
-        :param lstm_drop: The variational LSTM dropout probability.
+        """Configures the creation of the Minuet model.
+
+        :param char2index: dict mapping each word to their row on the
+        embedding matrix
+        :param pre_word: a preprocessing pipeline from minuet.preprocessing
+        :para word_embedding: pretrained word embedding
+        :param lstm_size: The size of LSTM layer hidden vectors
+        :param lstm_drop: Dropout prob for forward and recurrent connections
+        :param sent_noise_proba: Proba in which chars are replaced by UNK
         :param bidirectional: Should the LSTM layer be bidirectional?
+        :param crf: Should the output be performed by CRF instead of softmax?
         :param char_embeddings_conf: If supplied, the model will use character
-        embeddings as well.
+        embeddings as well
         """
         
         self._E = word_embedding
@@ -89,11 +107,14 @@ class Minuet():
         }
 
     def _save_model_description(self, folder):
+        """Persists the model on disk.
+
+        :param folder The model folder. It should already exist
+        :return None
+        """
+
         if not self.n_labels:
             raise RuntimeError('Amount of labels is not defined yet.')
-            
-        if not folder:
-            return
 
         # creating a Minuet copy without word embeddings
         minuet_copy = Minuet(
@@ -135,36 +156,14 @@ class Minuet():
     @classmethod
     def load(cls, model_folder):
         """Loads a previously trained Minuet model from a folder.
-        :param model_folder: Path to the folder containing the model files.
-        :returns A loaded circlet instance *without* the E field.
-        """
-        
-        # solution from https://github.com/keras-team/keras-contrib/issues/129
-        def create_custom_objects():
-            instanceHolder = {"instance": None}
-            
-            class ClassWrapper(CRF):
-                def __init__(self, *args, **kwargs):
-                    instanceHolder["instance"] = self
-                    super(ClassWrapper, self).__init__(*args, **kwargs)
-                    
-            def loss(*args):
-                method = getattr(instanceHolder["instance"], "loss_function")
-                return method(*args)
-            
-            def accuracy(*args):
-                method = getattr(instanceHolder["instance"], "accuracy")
-                return method(*args)
-            
-            return {"ClassWrapper": ClassWrapper ,"CRF": ClassWrapper, "loss": loss, "accuracy":accuracy}
 
-        def load_keras_model(path):
-            model = models.load_model(path, custom_objects=create_custom_objects())
-            return model
-        
+        :param model_folder: Path to the folder containing the model files.
+        :return The restored Minuet model
+        """
+                
         # load model architecture and weights
         model_filepath = path.join(model_folder, 'model.hdf5')
-        model = load_keras_model(model_filepath)
+        model = _utils.load_keras_model(model_filepath)
 
         # load Minuet object
         with open(path.join(model_folder, 'model.pyk'), 'rb') as file:
@@ -174,16 +173,21 @@ class Minuet():
         return minuet
 
     def set_label_encoder(self, label_encoder):
-        """Stores the label encoder, making it being saved along the model."""
-        if not isinstance(label_encoder, encoder.SequenceLabelEncoder):
-            raise RuntimeError('Only SequenceLabelEncoder objects can be stored.')
+        """Stores the label encoder, making it being saved along the model.
+        
+        :param label_encoder: Trained instance of a SequenceLabelEncoder
+        :return None
+        """
 
+        if not isinstance(label_encoder, encoder.SequenceLabelEncoder):
+            raise RuntimeError('SequenceLabelEncoder expected.')
         self._label_encoder = label_encoder
         
     def set_checkpoint_path(self, model_folder):
-        """Sets where the best Circlet model will be saved.
+        """Sets the *folder* (which should already exist) where the best Minuet
+        model will be saved. 
+
         :param model_folder: Path to a *folder* that will hold Circlet files.
-        :param word2index: Dicionarty mapping words to their IDs
         :returns None
         """
         
@@ -191,7 +195,7 @@ class Minuet():
         self._model_filepath = path.join(model_folder, 'model.hdf5')
         
     def _build_model(self):
-        """Buils the model defined on the class initialization."""
+        """Buils the model defined during class initialization."""
         
         if self.model:
             return
@@ -215,12 +219,12 @@ class Minuet():
                                                             self.bidirectional)
         
         if self.crf:
-            out, loss, acc = self.deep.build_crf_output(sentence_embeddings, self.n_labels)
+            out, loss, acc = self.deep.build_crf_output(sentence_embeddings,
+                                                        self.n_labels)
         else:
-            out, loss, acc = self.deep.build_softmax_output(sentence_embeddings, self.n_labels)
-            
-        #opt = optimizers.Adam(clipnorm=self.hyperparams['clipnorm'])
-        
+            out, loss, acc = self.deep.build_softmax_output(sentence_embeddings,
+                                                            self.n_labels)
+
         self.model = models.Model(inputs=model_inputs, outputs=[out])
         self.model.compile('adam', loss=loss, metrics=acc)
         self.model.summary()
@@ -228,11 +232,17 @@ class Minuet():
     def fit(self, X, Y, X_val, Y_val):
         """Fits the model. Notice that the index 0 for X should be reserved
         for padding sentences.
-        :param X An integer matrix where each row correspons to a sentence.
+
+        :param X: If the model uses character embeddings, [W, C], otherwhise
+        [W]. W is a matrix of sentence word embeddings, where each row is a
+        sample and each column a word. C is a matrix of sentence character
+        embeddings, where each row is a sample, each column a word and each
+        volume the IDs of its characters. You can simply pipe in the output of
+        the method prepare_samples
         :param Y A 3D a-b-c matrix, where a is the amount of samples, b the
             sequence size and c=1 (ie: amount of possible labels per sample)
-        :param X_val The validation samples in the same shape as X.
-        :param Y_val The validation labels in the same shape as Y.
+        :param X_val Same as X, but for the validation set
+        :param Y_val Same as Y, but for the validation set
         :returns None
         """
 
@@ -248,36 +258,35 @@ class Minuet():
         self._save_model_description(self._model_folder)
 
     def fit_generator(self, gen_train, gen_dev, n_labels):
-        """Fits the model using generators. Notice that the index 0 for X
-        should be reserved for padding sentences.
-        :param X An integer matrix where each row correspons to a sentence.
-        :param Y A 3D a-b-c matrix, where a is the amount of samples, b the
-            sequence size and c=1 (ie: amount of possible labels per sample)
-        :param X_val The validation samples in the same shape as X.
-        :param Y_val The validation labels in the same shape as Y.
-        :returns None
-        """
+        """Currently unavailable functionality."""
         
         raise NotImplementedError('Comming soon(TM)')
         
-        self.n_labels = n_labels
-        self._build_model()
+        # self.n_labels = n_labels
+        # self._build_model()
         
-        model_callbacks = self.deep.create_callbacks(1e-2, 3, self._model_filepath)
-        self._save_model_description(self._model_folder)
+        # model_callbacks = self.deep.create_callbacks(1e-2, 3, self._model_filepath)
+        # self._save_model_description(self._model_folder)
         
-        print('3541')
-        self.history = self.model.fit_generator(
-            gen_train, validation_data=gen_dev,
-            epochs=self.hyperparams['epochs'], 
-            callbacks=model_callbacks,
-        )
+        # self.history = self.model.fit_generator(
+        #     gen_train, validation_data=gen_dev,
+        #     epochs=self.hyperparams['epochs'], 
+        #     callbacks=model_callbacks,
+        # )
 
     def predict(self, X):
         """Predicts over a set of samples.
-        :param X: a list of sentences, where each sentence is a list of words.
-        :return n-by-l matrix, where n is the number of sentences and l
-        the length of the longest sample.
+
+        :param X: If the model uses character embeddings, [W, C], otherwhise
+        [W]. W is a matrix of sentence word embeddings, where each row is a
+        sample and each column a word. C is a matrix of sentence character
+        embeddings, where each row is a sample, each column a word and each
+        volume the IDs of its characters. You can simply pipe in the output of
+        the method prepare_samples
+
+        :return n-by-l integer matrix, where n is the number of rows in X and l
+        the length of the longest sample. Predictions might be padded with noise
+        labels which should be removed
         """
         
         # make every sentence the size of the longest one
@@ -288,9 +297,10 @@ class Minuet():
 
     def prepare_samples(self, X, sent_maxlen):
         """Prepare samples to be classified by the model.
-        :param X: List of sentences, where each sentence is a list of words.
-        :return u or [u, v]: where u are the word embeddings and v the char
-        embeddings (if used).
+
+        :param X: List of sentences, where each sentence is a list of words
+        :return W or [W, C]: where W are the word embeddings and C the char
+        embeddings matrices (if applicable)
         """
         X_words = encoder.sentence_to_index(X, self.word2index, self.pre_word, 
                                             sent_maxlen, self.sent_noise_proba)
@@ -304,9 +314,13 @@ class Minuet():
         return out 
 
     def decode_predictions(self, predictions):
-        """Converts class indices to labels."""
+        """Converts class indices to string labels.
+        
+        :param predictions: Output of the method predict
+        :return list of string sequence labels
+        """
+
         if not self._label_encoder:
             raise RuntimeError('Label decoder not found.')
 
         return self._label_encoder.inverse_transform(predictions)
-

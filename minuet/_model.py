@@ -14,16 +14,16 @@ from keras_contrib.layers import CRF
 class DeepModel():
     
     def build_char_embedding(self, amount_chars, char_embed_size, lstm_size, lstm_drop):
-        """Builds the bottom part of the model responsible for character embedding.
+        """Builds the bottom part of the model responsible for char embedding.
+
         :param amount_chars: How many chars there are to embed.
         :param char_embed_size: The dimensionality of the char-embedded vector.
-        :param lstm_size: size of the LSTM hidden state in which the char embedding
-        vectors are fed to. This value is multiplied by 2 due to the BiLSTM.
+        :param lstm_size: size of the LSTM hidden state in which the char
+        embedding vectors are fed to. This value duplicated due to the BiLSTM.
         :param lstm_drop: dropout parameter for the BiLSTM.
         :return [feed, out]
         """
-        
-        
+
         # shape_in: (batch_size, sentence_words_maxlen, chars_maxlen [ids])
         chars_input = Input(shape=(None, None), name='char_input')
         
@@ -47,8 +47,9 @@ class DeepModel():
         return chars_input, char_embedding
         
     def build_word_embedding(self, E):
-        """Computes simple word embedding as a lookup layer for words in a sentence.
-        :param E the embedding matrix with shape vocab_size-word_vec_dim.
+        """Simple word embedding as a lookup layer for words in a sentence.
+
+        :param E: the embedding matrix with shape vocab_size-word_vec_dim.
         :return [feed, out]
         """
         
@@ -64,17 +65,19 @@ class DeepModel():
         
         return words_input, word_embedding
     
-    def build_sentence_lstm(self, word_embedding, char_embedding, lstm_size, drop_proba, bidirectional):
+    def build_sentence_lstm(self, word_embedding, char_embedding, lstm_size,
+                            drop_proba, bidirectional):
         """Computes the hidden vectors for each word in a sentence.
-        :param word_embedding: The output of the word embedding part of the model.
+
+        :param word_embedding: The output of the word embedding part of the model
         :param char_embedding: The output of the char embedding part of the model (optional). If not
         informed the model will not use character embedding. If provided these vectors are concatenated
-        to the word embeddings.
+        to the word embeddings
         :param lstm_size: Size of the LSTM hidden state used to compute the contextual sentence
-        representation. Each timestep hidden state is returned by this graph sub-module.
-        :param drop_proba: LSTM dropout probability.
+        representation. Each timestep hidden state is returned by this graph sub-module
+        :param drop_proba: LSTM dropout probability
         :param bidirectional: If true a BiLSTM is used to read the sentence, duplicating the lenght of
-        each timestep vector.
+        each timestep vector
         :return [feed, out]
         """
         
@@ -101,7 +104,8 @@ class DeepModel():
     
     def build_softmax_output(self, sentence_representations, n_labels):
         """Builds the model's output layer formed by a softmax. Predictions are independent.
-        :param sentence_representation: The output of the module <build_sentence_lstm>.
+
+        :param sentence_representation: The output of the module <build_sentence_lstm>
         :param n_labels: The amount of possible classes for the problem
         :return [feed, out]
         """
@@ -116,7 +120,8 @@ class DeepModel():
         
     def build_crf_output(self, sentence_representations, n_labels):
         """Builds the model's output layer formed by a CRF. The last prediction affects the current.
-        :param sentence_representation: The output of the module <build_sentence_lstm>.
+        
+        :param sentence_representation: The output of the module <build_sentence_lstm>
         :param n_labels: The amount of possible classes for the problem
         :return [feed, out]
         """

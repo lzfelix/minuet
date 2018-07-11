@@ -13,20 +13,20 @@ class VariableBatchGenerator(keras.utils.Sequence):
         all batches are pre-computed, namely: no lazy evaluation is
         performed.
         
-        :param samples: list of sequences, represented as lists.
-        :param labels: list of sequence labels, represented as lists.
+        :param samples: list of sequences, represented as lists
+        :param labels: list of sequence labels, represented as lists
         :param batch_size: the suggested batch size. In reality the
         batch size is computed by the following formulas:
         
             amount_batches = int(np.ceil(amount_samples / self.batch_size))
             real_batch_size = int(np.ceil(amount_samples) / amount_batches)
             
-        granting that the last batch is not too small.
+        granting that the last batch is not too small
         :param min_batch_size: if there are less sequences of a given
-        size than this parameter, they are ignored.
-        :param shuffle: if true samples are shuffled before each epoch.
+        size than this parameter, they are ignored
+        :param shuffle: if true samples are shuffled before each epoch
         :param verbose: 0=silent, 1=show sequence length distribution,
-        2=shows information about skipped samples.
+        2=shows information about skipped samples
         """
         
         self.X = samples

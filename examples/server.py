@@ -1,9 +1,9 @@
 """
-    Minimal example of how to expose a Minuet model for prediction on a server.
-    Simply send a POST request in the following format to localhost:8090/:
-    {
-	    "sentences": ["apple inc is selling apples in the bay area"]
-    }
+Minimal example of how to expose a Minuet model for prediction on a server.
+Simple send to localhost:8090/ a POST request in the following format:
+{
+    "sentences": ["apple inc is selling apples in the bay area"]
+}
 """
 
 
@@ -40,7 +40,7 @@ class DefaultHandler(RequestHandler):
                         for se, la in zip(sentences, labels)]
 
             self.write(dict(result=result))
-        except Exception as e:
+        except:
             raise RuntimeError('Failed to perform prediction.')
 
 

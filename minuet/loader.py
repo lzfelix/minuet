@@ -7,8 +7,12 @@ import numpy as np
 import gensim
 
 
-def load_dataset(filepath: str) -> Tuple[List[list], List[list]]:
-    """Loads a file on the CoNLL dataset."""
+def load_dataset(filepath):
+    """Loads a file on the CoNLL dataset.
+
+    :param filepath: Path to a text file on the CoNLL format.
+    :return (X, Y) lists of sentences and labels.
+    """
     
     X = list()
     x = list()
@@ -32,7 +36,7 @@ def load_dataset(filepath: str) -> Tuple[List[list], List[list]]:
     return X, Y
 
 
-def get_possible_labels(Y: List[List[str]]) -> List[str]:
+def get_possible_labels(Y):
     """Computes the set of unique labels from the dataset labels."""
     
     return list(set(itertools.chain(*Y)))
@@ -42,8 +46,10 @@ def get_characters_mapping(X, f=None):
     """Determines all unique characters from the dataset.
     
     :param X: List of tokenized sentences.
-    :param f: Preprocessing function applied to every token before analysis.
-    This function can be different from the one used with get_vocabulary.
+    :param f: Preprocessing functions applied to every token before analysis.
+    This function can be different from the one used with get_vocabulary
+    :return dict mapping characters to their IDs. Character 0 is always padding
+    and 1 is always UNK
     """
     f = f or (lambda x: x)
     
@@ -59,11 +65,11 @@ def get_characters_mapping(X, f=None):
     return vocab
 
 
-def get_vocabulary(X: List[List[str]], f) -> Set[str]:
+def get_vocabulary(X, f):
     """Determine unique words on the dataset.
     
-    :param X: List of tokenized sentences.
-    :param *preprocess: p_-like preprocessing functions.
+    :param X: List of tokenized sentences
+    :param *preprocess: p_-like preprocessing functions
     """
     
     f = f or (lambda x: x)
@@ -76,16 +82,16 @@ def get_vocabulary(X: List[List[str]], f) -> Set[str]:
     return vocab
 
 
-def load_embeddings(filepath: str, vocabulary: Set[str], retain: bool=False) -> Tuple[Dict, np.ndarray]:
+def load_embeddings(filepath, vocabulary, retain):
     """
-    Loads the word embeddings for the necessary words only. Words not known by the
-    model are skipped.
+    Loads the word embeddings for the necessary words only. Words not known by
+    the model are skipped.
     
-    :param filepath: Path to file with embedding vectors on gensim formet.
-    :param vocabulary: Vocabulary to be mapped to word vectors.
-    :param retain: If True, Minuet will retain all vectors from the underlying model,
-    otherwise it will keep only the vectors of the words seen on the training data, making the model smaller in terms of memory and storage requirements.
-    :returns (V, E) where V maps words to their row number on the embedding matrix E.
+    :param filepath: Path to file with embedding vectors on gensim formet
+    :param vocabulary: Vocabulary to be mapped to word vectors
+    :param retain: If True, Minuet will keep all embeddings, otherwise it will
+    keep just the vectors seen on training data
+    :return (V, E) where V maps words to their row on the embedding matrix E
     """
     
     word2index = dict()

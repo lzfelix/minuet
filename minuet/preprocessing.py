@@ -10,7 +10,13 @@ def lower(w):
 
 
 def assemble(*funs):
-    """Helper function composition function."""
+    """Helper function to assemble a preprocessing pipeline. Example:
+    `pre = assemple(lower, replace_numbers)`.
+
+    :param functions that will compose the pipeline
+    :return a sequential pipeline function to be used by Minuet
+    ."""
+
     def closure(x):
         for f in funs:
             x = f(x)

@@ -17,4 +17,3 @@ if __name__ == '__main__':
         for word, label in zip(sentence, labels):
             print(f'{word}/{label} ', end='')
         print()
-
