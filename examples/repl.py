@@ -1,6 +1,6 @@
 from minuet import Minuet
 
-MODEL_PATH = '../models/ner/'
+MODEL_PATH = '../models/small_ner/'
 
 if __name__ == '__main__':
     model = Minuet.load(MODEL_PATH)

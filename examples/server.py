@@ -19,7 +19,7 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 
 PORT=8090
-NER_PATH = '../models/ner'
+NER_PATH = '../models/small_ner/'
 
 class DefaultHandler(RequestHandler):
 
