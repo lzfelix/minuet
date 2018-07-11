@@ -4,7 +4,7 @@
 
 
 
-Minuet is an opinionated library to perform NLP sequence tagging tasks, such as Named Entity Recognition, Part-of-Speech tagging and Chunking, by just changing the dataset, while keeping the model untouched. Despite of this, Minuet allows the user to choose which parts to use and turn off when building a new model. Think about it as a Lego library: if the goal is to fit a model quickly, you can use the default values and options, but you are also allowed to fine-tune the model hyperparameters and architecture if you wish to do so. The library was designed to be as self-contained as possible, avoiding being a black-box and allowing easy traning, disk persistence, reloading and serving. A few illustrations of these functionalities are provided on `examples/` .
+Minuet is an opinionated library to perform NLP sequence tagging tasks, such as Named Entity Recognition, Part-of-Speech Tagging and Chunking, by just changing the dataset, while keeping the model untouched. Despite this, Minuet allows the user to choose which parts to use and turn off when building a new model. Think about it as a Lego library: if the goal is to fit a model quickly, you can use the default values and options, but you are also allowed to fine-tune the model hyperparameters and architecture if you wish to do so. The library was designed to be as self-contained as possible, avoiding being a black-box and allowing easy traning, disk persistence, reloading and serving. A few illustrations of these functionalities are provided on `examples/` .
 
 
 
@@ -20,8 +20,8 @@ Minuet is an opinionated library to perform NLP sequence tagging tasks, such as 
 * Portable: train a model, persist it, then restore it on a different machine, for instance, a server, for predictions.
 * Easy-to-customize preprocessing pipeline;
 * Supports GPU training through Keras/Tensorflow backend;
-* Documented! :happy: (*but right now we need to update the docs*)
 * Bundled with examples;
+* Documented! :smiley:
 
 
 
@@ -33,6 +33,11 @@ To install Minuet, simply clone this repository and install it through pip with
 git clone https://github.com/lzfelix/minuet.git
 cd minuet && pip install .
 ```
+
+
+## Pretrained Model
+
+You can obtain a pretrained NER model from [this link](https://www.dropbox.com/s/ccf7dc01loyc38d/small_ner.zip?dl=0) to run the example code. Just extract it on `models/small_ner/`. Please bear in mind that this model was trained using the default Minuet configs (unidirectional LSTM, no CRF, no character embedding, keeps only necessary word vectors), thus making it (very) weak, but also very small to download (about 18MB).
 
 
 ## Basic usage
