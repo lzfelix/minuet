@@ -1,8 +1,11 @@
 import json
+import warnings
 from os import path
 
 import numpy as np
 import cloudpickle as pickle
+from seqeval import metrics as seq_metrics
+
 from keras import models
 from keras import optimizers
 
@@ -260,7 +263,7 @@ class Minuet():
     def fit_generator(self, gen_train, gen_dev, n_labels):
         """Currently unavailable functionality."""
         
-        raise NotImplementedError('Comming soon(TM)')
+        raise NotImplementedError('Coming soon(TM)')
         
         # self.n_labels = n_labels
         # self._build_model()
@@ -293,7 +296,17 @@ class Minuet():
         sent_len = max(len(x) for x in X)
 
         inputs = self.prepare_samples(X, sent_len)
-        return np.argmax(self.model.predict(inputs), axis=-1)
+        y_hats = np.argmax(self.model.predict(inputs), axis=-1)
+        x_lens = np.asarray([len(x) for x in X])
+
+        # cropping the predictions matrix, so the sequence of labels
+        # matches the sequence of words
+        trimmed = list()
+        for preds, lens in zip(y_hats, x_lens):
+            trimmed.append(preds[:lens])
+
+        return trimmed
+
 
     def prepare_samples(self, X, sent_maxlen):
         """Prepare samples to be classified by the model.
@@ -311,7 +324,7 @@ class Minuet():
                                                      sent_maxlen, ce.pre, 
                                                      ce.noise_proba)
             out = [X_words, X_chars]
-        return out 
+        return out
 
     def decode_predictions(self, predictions):
         """Converts class indices to string labels.
@@ -320,7 +333,24 @@ class Minuet():
         :return list of string sequence labels
         """
 
+        self._supress_warnings()
+
         if not self._label_encoder:
             raise RuntimeError('Label decoder not found.')
 
         return self._label_encoder.inverse_transform(predictions)
+
+    def evaluate(self, X, Y):
+        self._supress_warnings()
+
+        Y_hat = self.decode_predictions(self.predict(X))
+        Y_hat = [y.tolist() for y in Y_hat]
+
+        return seq_metrics.classification_report(Y, Y_hat) 
+
+    def _supress_warnings(self):
+        # We need to supress warnings. Can't downgrade numpy because of seqeval
+        # Trick from https://stackoverflow.com/questions/49545947/sklearn-
+        # deprecationwarning-truth-value-of-an-array
+        warnings.filterwarnings(action='ignore', category=DeprecationWarning)
+
