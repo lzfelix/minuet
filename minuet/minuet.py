@@ -1,4 +1,5 @@
 import json
+import time
 from os import path
 
 import numpy as np
@@ -229,7 +230,7 @@ class Minuet():
         self.model.compile('adam', loss=loss, metrics=acc)
         self.model.summary()
         
-    def fit(self, X, Y, X_val, Y_val):
+    def fit(self, X, Y, X_val, Y_val, extra_callbacks=None):
         """Fits the model. Notice that the index 0 for X should be reserved
         for padding sentences.
 
@@ -250,6 +251,9 @@ class Minuet():
         self._build_model()
 
         model_callbacks = self.deep.create_callbacks(1e-2, 3, self._model_filepath)
+        if extra_callbacks:
+            model_callbacks.extend(extra_callbacks)
+
         self.history = self.model.fit(
             X, Y, validation_data=(X_val, Y_val),
             batch_size=self.hyperparams['batch_size'], epochs=self.hyperparams['epochs'],
@@ -324,3 +328,13 @@ class Minuet():
             raise RuntimeError('Label decoder not found.')
 
         return self._label_encoder.inverse_transform(predictions)
+
+    def __str__(self):
+        has_chars = self.char_embed is not None
+        return 'time={}-'.format(str(time.strftime('%d/%m/%Y %H:%M:%S'))) + \
+               f'hidden={self.lstm_size}' +  \
+               f'-drop={self.lstm_drop}'+ \
+               f'-bi={self.bidirectional}' + \
+               f'-crf={self.crf}' + \
+               f'-chars={has_chars}'
+
