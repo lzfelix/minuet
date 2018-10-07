@@ -88,7 +88,7 @@ This section describes a brief usage of Minuet. The full (and more complex) code
 
    ```python
    from minuet import Minuet
-   model = mm.Minuet(
+   model = Minuet(
        word2index=word2index,
        pre_word=pre_word,
        word_embedding=E,
