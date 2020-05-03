@@ -15,7 +15,7 @@ setup(
         'sklearn',
         'h5py',
         'keras==2.2.0',
-        'tensorflow==1.12.1',
+        'tensorflow==1.15.2',
         'cloudpickle==0.5.3',
     ],
     dependency_links=[
